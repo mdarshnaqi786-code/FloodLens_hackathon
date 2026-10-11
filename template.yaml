@@ -1,0 +1,58 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: FloodLens local API for flood incident reporting
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs20.x
+    MemorySize: 256
+
+Resources:
+  FloodLensApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+      CorsConfiguration:
+        AllowOrigins:
+          - 'http://localhost:5173'
+          - 'http://127.0.0.1:5173'
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+        MaxAge: 600
+
+  FloodLensFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/backend/
+      Handler: api.handler
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: 'http://host.docker.internal:8000'
+          TABLE_NAME: FloodLensIncidents
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: FloodLensIncidents
+      Events:
+        GetIncidents:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FloodLensApi
+            Path: /api/v1/incidents
+            Method: GET
+        SubmitReport:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FloodLensApi
+            Path: /api/v1/reports
+            Method: POST
+
+Outputs:
+  FloodLensApiUrl:
+    Description: Local FloodLens API base URL
+    Value: !Sub 'https://${FloodLensApi}.execute-api.${AWS::Region}.amazonaws.com'
